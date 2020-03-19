@@ -47,6 +47,16 @@ from common_helpers import *
 from data_helpers import *
 import graph_flops
 
+#import pycuda
+try:
+    import pycuda.autoinit
+    import pycuda as pyc
+    have_pycuda=True
+    print("pycuda enabled")
+except:
+    print("pycuda not installed")
+    have_pycuda=False
+
 #GLOBAL CONSTANTS
 image_height_orig = 768
 image_width_orig = 1152
@@ -381,6 +391,11 @@ def main(device, input_path_train, input_path_validation, dummy_data,
             #start training
             start_time = time.time()
             print('Begin training loop')
+
+            #start profiling
+            if have_pycuda:
+                pyc.driver.start_profiler()
+
             while not sess.should_stop():
 
                 #training loop
@@ -484,6 +499,10 @@ def main(device, input_path_train, input_path_validation, dummy_data,
 
                 except tf.errors.OutOfRangeError:
                     break
+
+            #end of profiling
+            if have_pycuda:
+                pyc.driver.stop_profiler()
 
         # write any cached traces to disk
         if tracing is not None:
