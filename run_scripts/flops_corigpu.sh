@@ -10,8 +10,8 @@
 
 # Job parameters
 do_stage=false
-ntrain=2
-nvalid=-1
+ntrain=32
+nvalid=0
 ntest=0
 batch=1
 epochs=4
@@ -51,11 +51,7 @@ while (( "$#" )); do
 done
 
 #load modules
-module load cuda/10.2.89
-module load python/3.7-anaconda-2019.07
-
-#activate env
-source activate py3.7-tf1.15
+module load tensorflow/gpu-1.15.0-py37
 
 export OMP_PLACES=threads
 export OMP_PROC_BIND=spread
@@ -88,7 +84,7 @@ smsp__sass_thread_inst_executed_op_hmul_pred_on.sum,\
 smsp__sass_thread_inst_executed_op_hfma_pred_on.sum
 "
 
-profilestring="/project/projectdirs/m1759/nsight-compute-2019.5.0.15/nv-nsight-cu-cli --profile-from-start off --metrics ${metrics} -f -o flops"
+profilestring="/project/projectdirs/m1759/nsight-compute-2019.5.0.15/nv-nsight-cu-cli --profile-from-start off --metrics ${metrics} -f -o"
 
 # Stage data if relevant
 if [ "${scratchdir}" != "${datadir}" ]; then
@@ -104,7 +100,7 @@ fi
 # Run the training
 if [ $ntrain -ne 0 ]; then
     echo "Starting Training"
-    srun -u --cpu_bind=cores ${profilestring} python -u deeplab-tf-train.py \
+    srun -u --cpu_bind=cores ${profilestring} flops_train python -u deeplab-tf-train.py \
         --datadir_train ${scratchdir}/train \
         --train_size ${ntrain} \
         --datadir_validation ${scratchdir}/validation \
@@ -112,7 +108,7 @@ if [ $ntrain -ne 0 ]; then
         --chkpt_dir checkpoint.fp${prec}.lag${grad_lag} \
         --disable_checkpoint \
         --epochs $epochs \
-        --fs global \
+        --fs "global" \
         --loss $loss_type \
         --optimizer opt_type=LARC-Adam,learning_rate=0.0001,gradient_lag=${grad_lag} \
         --model "resnet_v2_50" \
@@ -126,11 +122,9 @@ if [ $ntrain -ne 0 ]; then
         $other_train_opts |& tee out.fp${prec}.lag${grad_lag}.train
 fi
 
-cp -r ${run_dir} ${out_dir}
-
 #if [ $ntest -ne 0 ]; then
 #    echo "Starting Testing"
-#    srun -u --cpu_bind=cores python -u deeplab-tf-inference.py \
+#    srun -u --cpu_bind=cores ${profilestring} flops_inference python -u deeplab-tf-inference.py \
 #        --datadir_test ${scratchdir}/test \
 #        --chkpt_dir checkpoint.fp${prec}.lag${grad_lag} \
 #        --test_size ${ntest} \

@@ -150,8 +150,12 @@ def main(device, input_path_train, input_path_validation, dummy_data,
         num_samples = train_files.shape[0] // comm_local_size
     else:
         num_samples = train_files.shape[0] // comm_size
+    print("num_samples: {} batch: {}".format(num_samples, batch))
     num_steps_per_epoch = num_samples // batch
     num_steps = num_epochs*num_steps_per_epoch
+    if comm_rank==0:
+        print("Number of steps per epoch: {}".format(num_steps_per_epoch))
+        print("Number of steps in total: {}".format(num_steps))
     if per_rank_output:
         print("Rank {} does {} steps per epoch".format(comm_rank,
                                                        num_steps_per_epoch))
@@ -355,6 +359,7 @@ def main(device, input_path_train, input_path_validation, dummy_data,
                                                cache_traces=True,
                                                trace_dir=trace_dir)
             hooks.append(tracing_hook)
+            print("############ tracing enabled")
 
         # instead of averaging losses over an entire epoch, use a moving
         #  window average
@@ -388,119 +393,30 @@ def main(device, input_path_train, input_path_validation, dummy_data,
             t_sustained_start = time.time()
             r_peak = 0
 
+            #warmup loops
+            print("### Warmup for 5 steps")
+            start_time = time.time()
+            for _ in range(5):
+                _, tmp_loss = sess.run([train_op,(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
+            end_time = time.time()
+            print("### Warmup time: {}".format(end_time - start_time))
+
             #start training
             start_time = time.time()
             print('Begin training loop')
 
-            #start profiling
+            ### Start profiling
             if have_pycuda:
                 pyc.driver.start_profiler()
 
             while not sess.should_stop():
-
-                #training loop
                 try:
                     #construct feed dict
-                    t_inst_start = time.time()
-                    _, tmp_loss, cur_lr = sess.run([train_op,
-                                                    (loss if per_rank_output else loss_avg),
-                                                    lr],
-                                                   feed_dict={handle: trn_handle})
-                    t_inst_end = time.time()
-                    if "gpu" in device.lower():
-                        mem_used = sess.run(mem_usage_ops)
-                    else:
-                        mem_used = [0, 0]
-                    train_steps += 1
-                    train_steps_in_epoch = train_steps%num_steps_per_epoch
-                    recent_losses = [ tmp_loss ] + recent_losses[0:loss_window_size-1]
-                    train_loss = sum(recent_losses) / len(recent_losses)
-                    step += 1
-
-                    r_inst = 1e-12 * flops / (t_inst_end-t_inst_start)
-                    r_peak = max(r_peak, r_inst)
-
-                    #print step report
-                    if (train_steps % loss_print_interval) == 0:
-                        if "gpu" in device.lower():
-                            mem_used = sess.run(mem_usage_ops)
-                        else:
-                            mem_used = [0, 0]
-                        if per_rank_output:
-                            print("REPORT: rank {}, training loss for step {} (of {}) is {:.5f}, time {:.3f}".format(comm_rank, train_steps, num_steps, train_loss, time.time()-start_time))
-                        else:
-                            if comm_rank == 0:
-                                if mem_used[0] > prev_mem_usage:
-                                    print("memory usage: {:.2f} GB / {:.2f} GB".format(mem_used[0] / 2.0**30, mem_used[1] / 2.0**30))
-                                    prev_mem_usage = mem_used[0]
-                                print("REPORT: training loss for step {} (of {}) is {}, time {:.3f}, r_inst {:.3f}, r_peak {:.3f}, lr {:.2g}".format(train_steps, num_steps, train_loss, time.time()-start_time, r_inst, r_peak, cur_lr))
-
-                    #do the validation phase
-                    if train_steps_in_epoch == 0:
-                        end_time = time.time()
-                        #print epoch report
-                        if per_rank_output:
-                            print("COMPLETED: rank {}, training loss for epoch {} (of {}) is {:.5f}, time {:.3f}, r_sust {:.3f}".format(comm_rank, epoch, num_epochs, train_loss, time.time() - start_time, 1e-12 * flops * num_steps_per_epoch / (end_time-t_sustained_start)))
-                        else:
-                            if comm_rank == 0:
-                                print("COMPLETED: training loss for epoch {} (of {}) is {:.5f}, time {:.3f}, r_sust {:.3f}".format(epoch, num_epochs, train_loss, time.time() - start_time, 1e-12 * flops * num_steps_per_epoch / (end_time-t_sustained_start)))
-
-                        #evaluation loop
-                        eval_loss = 0.
-                        eval_steps = 0
-                        while True:
-                            try:
-                                #construct feed dict
-                                _, tmp_loss, val_model_predictions, val_model_labels, val_model_filenames = sess.run([iou_update_op,
-                                                                                                                      (loss if per_rank_output else loss_avg),
-                                                                                                                      prediction,
-                                                                                                                      next_elem[1],
-                                                                                                                      next_elem[3]],
-                                                                                                                      feed_dict={handle: val_handle})
-                                #print some images
-                                if comm_rank == 0 and not disable_imsave:
-                                    if have_imsave:
-                                        imsave(image_dir+'/test_pred_epoch'+str(epoch)+'_estep'
-                                               +str(eval_steps)+'_rank'+str(comm_rank)+'.png',np.argmax(val_model_predictions[0,...],axis=2)*100)
-                                        imsave(image_dir+'/test_label_epoch'+str(epoch)+'_estep'
-                                               +str(eval_steps)+'_rank'+str(comm_rank)+'.png',val_model_labels[0,...]*100)
-                                        imsave(image_dir+'/test_combined_epoch'+str(epoch)+'_estep'
-                                               +str(eval_steps)+'_rank'+str(comm_rank)+'.png',plot_colormap[val_model_labels[0,...],np.argmax(val_model_predictions[0,...],axis=2)])
-                                    else:
-                                        np.savez(image_dir+'/test_epoch'+str(epoch)+'_estep'
-                                                 +str(eval_steps)+'_rank'+str(comm_rank)+'.npz', prediction=np.argmax(val_model_predictions[0,...],axis=2)*100,
-                                                                                                 label=val_model_labels[0,...]*100,
-                                                                                                 filename=val_model_filenames[0])
-                                eval_loss += tmp_loss
-                                eval_steps += 1
-                            except tf.errors.OutOfRangeError:
-                                eval_steps = np.max([eval_steps,1])
-                                eval_loss /= eval_steps
-                                if per_rank_output:
-                                    print("COMPLETED: rank {}, evaluation loss for epoch {} (of {}) is {:.5f}".format(comm_rank, epoch, num_epochs, eval_loss))
-                                else:
-                                    if comm_rank == 0:
-                                        print("COMPLETED: evaluation loss for epoch {} (of {}) is {:.5f}".format(epoch, num_epochs, eval_loss))
-                                if per_rank_output:
-                                    iou_score = sess.run(iou_op)
-                                    print("COMPLETED: rank {}, evaluation IoU for epoch {} (of {}) is {:.5f}".format(comm_rank, epoch, num_epochs, iou_score))
-                                else:
-                                    iou_score = sess.run(iou_avg)
-                                    if comm_rank == 0:
-                                        print("COMPLETED: evaluation IoU for epoch {} (of {}) is {:.5f}".format(epoch, num_epochs, iou_score))
-                                sess.run(iou_reset_op)
-                                sess.run(val_init_op, feed_dict={handle: val_handle})
-                                break
-
-                        #reset counters
-                        epoch += 1
-                        step = 0
-                        t_sustained_start = time.time()
+                    _, tmp_loss = sess.run([train_op,(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
 
                 except tf.errors.OutOfRangeError:
                     break
-
-            #end of profiling
+            ### End of profiling
             if have_pycuda:
                 pyc.driver.stop_profiler()
 
@@ -535,7 +451,7 @@ if __name__ == '__main__':
     AP.add_argument("--disable_checkpoints",action='store_true',help="Flag to disable checkpoint saving/loading")
     AP.add_argument("--disable_imsave",action='store_true',help="Flag to disable image saving")
     AP.add_argument("--disable_horovod",action='store_true',help="Flag to disable horovod")
-    AP.add_argument("--tracing",type=str,help="Steps or range of steps to trace")
+    AP.add_argument("--tracing",default=None,type=str,help="Steps or range of steps to trace")
     AP.add_argument("--trace_dir",type=str,help="Directory where trace files should be written")
     AP.add_argument("--sampling",type=int,help="Target number of pixels from each class to sample")
     AP.add_argument("--scale_factor",default=0.1,type=float,help="Factor used to scale loss.")
