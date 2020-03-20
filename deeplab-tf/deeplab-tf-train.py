@@ -399,13 +399,10 @@ def main(device, input_path_train, input_path_validation, dummy_data,
             for _ in range(5):
                 _, tmp_loss = sess.run([train_op,(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
             end_time = time.time()
-            print("### Warmup time: {}".format(end_time - start_time))
-
-            #start training
-            start_time = time.time()
-            print('Begin training loop')
+            print("### Warmup time: {:0.2f}".format(end_time - start_time))
 
             ### Start profiling
+            print('Begin training loop')
             if have_pycuda:
                 pyc.driver.start_profiler()
 
@@ -416,6 +413,7 @@ def main(device, input_path_train, input_path_validation, dummy_data,
 
                 except tf.errors.OutOfRangeError:
                     break
+
             ### End of profiling
             if have_pycuda:
                 pyc.driver.stop_profiler()
