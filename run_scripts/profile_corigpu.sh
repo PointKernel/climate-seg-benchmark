@@ -1,20 +1,19 @@
 #!/bin/bash
 #SBATCH -J climseg-cgpu
 #SBATCH -C gpu
-#SBATCH --ntasks-per-node=8
-#SBATCH --gres=gpu:8
-#SBATCH --exclusive
+#SBATCH --ntasks-per-node=1
+#SBATCH --gres=gpu:1
 #SBATCH -d singleton
 #SBATCH -t 4:00:00
 #SBATCH -o %x-%j.out
 
 # Job parameters
 do_stage=false
-ntrain=16
+ntrain=6
 nvalid=0
 ntest=0
 batch=1
-epochs=4
+epochs=1
 prec=16
 grad_lag=1
 scale_factor=0.1
@@ -75,39 +74,42 @@ cp ../deeplab-tf/deeplab-tf-inference.py ${run_dir}/
 cp ../deeplab-tf/deeplab_model.py ${run_dir}/
 cd ${run_dir}
 
-metrics="sm__inst_executed_pipe_tensor_op_hmma.avg.pct_of_peak_sustained_active,\
-smsp__sass_thread_inst_executed_op_dadd_pred_on.sum,\
-smsp__sass_thread_inst_executed_op_dmul_pred_on.sum,\
-smsp__sass_thread_inst_executed_op_dfma_pred_on.sum,\
-smsp__sass_thread_inst_executed_op_fadd_pred_on.sum,\
-smsp__sass_thread_inst_executed_op_fmul_pred_on.sum,\
-smsp__sass_thread_inst_executed_op_ffma_pred_on.sum,\
-smsp__sass_thread_inst_executed_op_hadd_pred_on.sum,\
-smsp__sass_thread_inst_executed_op_hmul_pred_on.sum,\
-smsp__sass_thread_inst_executed_op_hfma_pred_on.sum,\
-smsp__cycles_elapsed.sum,\
-smsp__cycles_elapsed.sum.per_second,\
-smsp__pipe_tensor_op_hmma_cycles_active.sum,\
-smsp__pipe_tensor_op_hmma_cycles_active.sum.per_second,\
-l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,\
-l1tex__t_sectors_pipe_lsu_mem_global_op_st.sum,\
-l1tex__t_set_accesses_pipe_lsu_mem_global_op_atom.sum,\
-l1tex__t_set_accesses_pipe_lsu_mem_global_op_red.sum,\
-l1tex__t_set_accesses_pipe_tex_mem_surface_op_atom.sum,\
-l1tex__t_set_accesses_pipe_tex_mem_surface_op_red.sum,\
-l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum,\
-l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum,\
-smsp__inst_executed_op_shared_ld.sum,\
-smsp__inst_executed_op_shared_st.sum,\
-lts__t_sectors_op_read.sum,\
-lts__t_sectors_op_write.sum,\
-lts__t_sectors_op_atom.sum,\
-lts__t_sectors_op_red.sum,\
-dram__sectors_read.sum,\
-dram__sectors_write.sum
+#metrics="sm__inst_executed_pipe_tensor_op_hmma.avg.pct_of_peak_sustained_active,\
+#smsp__sass_thread_inst_executed_op_fadd_pred_on.sum,\
+#smsp__sass_thread_inst_executed_op_fmul_pred_on.sum,\
+#smsp__sass_thread_inst_executed_op_ffma_pred_on.sum,\
+#smsp__sass_thread_inst_executed_op_hadd_pred_on.sum,\
+#smsp__sass_thread_inst_executed_op_hmul_pred_on.sum,\
+#smsp__sass_thread_inst_executed_op_hfma_pred_on.sum,\
+#smsp__cycles_elapsed.sum,\
+#smsp__cycles_elapsed.sum.per_second,\
+#lts__t_sectors_aperture_sysmem_op_read.sum,\
+#lts__t_sectors_aperture_sysmem_op_write.sum,\
+#smsp__pipe_tensor_op_hmma_cycles_active.sum,\
+#smsp__pipe_tensor_op_hmma_cycles_active.sum.per_second,\
+#l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,\
+#l1tex__t_sectors_pipe_lsu_mem_global_op_st.sum,\
+#l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum,\
+#l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum,\
+#l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum,\
+#l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum,\
+#l1tex__t_set_accesses_pipe_lsu_mem_global_op_atom.sum,\
+#l1tex__t_set_accesses_pipe_lsu_mem_global_op_red.sum,\
+#l1tex__t_set_accesses_pipe_tex_mem_surface_op_atom.sum,\
+#l1tex__t_set_accesses_pipe_tex_mem_surface_op_red.sum,\
+#lts__t_sectors_op_read.sum,\
+#lts__t_sectors_op_write.sum,\
+#lts__t_sectors_op_atom.sum,\
+#lts__t_sectors_op_red.sum,\
+#dram__sectors_read.sum,\
+#dram__sectors_write.sum\
+#"
+
+metrics="l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum,\
+l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum
 "
 
-profilestring="/project/projectdirs/m1759/nsight-compute-2019.5.0.15/nv-nsight-cu-cli --profile-from-start off --metrics ${metrics} -f -o"
+profilestring="/project/projectdirs/m1759/nsight-compute-2019.5.0.15/nv-nsight-cu-cli --profile-from-start off --metrics ${metrics} -f --csv"
 
 # Stage data if relevant
 if [ "${scratchdir}" != "${datadir}" ]; then
@@ -123,7 +125,7 @@ fi
 # Run the training
 if [ $ntrain -ne 0 ]; then
     echo "Starting Training"
-    srun -u --cpu_bind=cores ${profilestring} tf_train python -u deeplab-tf-train.py \
+    srun -u --cpu_bind=cores ${profilestring} python -u deeplab-tf-train.py \
         --datadir_train ${scratchdir}/train \
         --train_size ${ntrain} \
         --datadir_validation ${scratchdir}/validation \
@@ -145,22 +147,22 @@ if [ $ntrain -ne 0 ]; then
         $other_train_opts |& tee out.fp${prec}.lag${grad_lag}.train
 fi
 
-#if [ $ntest -ne 0 ]; then
-#    echo "Starting Testing"
-#    srun -u --cpu_bind=cores ${profilestring} flops_inference python -u deeplab-tf-inference.py \
-#        --datadir_test ${scratchdir}/test \
-#        --chkpt_dir checkpoint.fp${prec}.lag${grad_lag} \
-#        --test_size ${ntest} \
-#        --output_graph deepcam_inference.pb \
-#        --output output_test_5 \
-#        --fs "local" \
-#        --loss $loss_type \
-#        --model "resnet_v2_50" \
-#        --scale_factor $scale_factor \
-#        --batch $batch \
-#        --decoder "deconv1x" \
-#        --device "/device:cpu:0" \
-#        --dtype "float${prec}" \
-#        --label_id 0 \
-#        --data_format "channels_last" |& tee out.fp${prec}.lag${grad_lag}.test
-#fi
+if [ $ntest -ne 0 ]; then
+    echo "Starting Testing"
+    srun -u --cpu_bind=cores ${profilestring} flops_inference python -u deeplab-tf-inference.py \
+        --datadir_test ${scratchdir}/test \
+        --chkpt_dir checkpoint.fp${prec}.lag${grad_lag} \
+        --test_size ${ntest} \
+        --output_graph deepcam_inference.pb \
+        --output output_test_5 \
+        --fs "local" \
+        --loss $loss_type \
+        --model "resnet_v2_50" \
+        --scale_factor $scale_factor \
+        --batch $batch \
+        --decoder "deconv1x" \
+        --device "/device:cpu:0" \
+        --dtype "float${prec}" \
+        --label_id 0 \
+        --data_format "channels_last" |& tee out.fp${prec}.lag${grad_lag}.test
+fi
