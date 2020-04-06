@@ -3,7 +3,7 @@
 #SBATCH -C gpu
 #SBATCH --ntasks-per-node=1
 #SBATCH --gres=gpu:1
-#SBATCH -d singleton
+#SBATCH --exclusive
 #SBATCH -t 4:00:00
 #SBATCH -o %x-%j.out
 
@@ -105,8 +105,9 @@ cd ${run_dir}
 #dram__sectors_write.sum\
 #"
 
-metrics="l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum,\
-l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum
+metrics="\
+l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,\
+l1tex__t_sectors_pipe_lsu_mem_global_op_st.sum
 "
 
 profilestring="/project/projectdirs/m1759/nsight-compute-2019.5.0.15/nv-nsight-cu-cli --profile-from-start off --metrics ${metrics} -f --csv"
