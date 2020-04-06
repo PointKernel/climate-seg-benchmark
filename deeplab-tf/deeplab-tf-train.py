@@ -27,6 +27,8 @@ import time
 
 # suppress tensorflow warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+#os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '1'
+
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 #horovod, yes or no?
@@ -397,7 +399,8 @@ def main(device, input_path_train, input_path_validation, dummy_data,
             print("### Warmup for 5 steps")
             start_time = time.time()
             for _ in range(5):
-                _, tmp_loss = sess.run([train_op,(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
+                #_, tmp_loss = sess.run([train_op,(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
+                tmp_loss = sess.run([(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
             end_time = time.time()
             print("### Warmup time: {:0.2f}".format(end_time - start_time))
 
@@ -409,7 +412,8 @@ def main(device, input_path_train, input_path_validation, dummy_data,
             while not sess.should_stop():
                 try:
                     #construct feed dict
-                    _, tmp_loss = sess.run([train_op,(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
+                    #_, tmp_loss = sess.run([train_op,(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
+                    tmp_loss = sess.run([(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
 
                 except tf.errors.OutOfRangeError:
                     break

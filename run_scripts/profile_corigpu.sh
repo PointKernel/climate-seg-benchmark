@@ -9,10 +9,10 @@
 
 # Job parameters
 do_stage=false
-ntrain=6
+ntrain=12
 nvalid=0
 ntest=0
-batch=1
+batch=2
 epochs=1
 prec=16
 grad_lag=1
@@ -74,7 +74,8 @@ cp ../deeplab-tf/deeplab-tf-inference.py ${run_dir}/
 cp ../deeplab-tf/deeplab_model.py ${run_dir}/
 cd ${run_dir}
 
-#metrics="sm__inst_executed_pipe_tensor_op_hmma.avg.pct_of_peak_sustained_active,\
+#metrics="\
+#sm__inst_executed_pipe_tensor_op_hmma.avg.pct_of_peak_sustained_active,\
 #smsp__sass_thread_inst_executed_op_fadd_pred_on.sum,\
 #smsp__sass_thread_inst_executed_op_fmul_pred_on.sum,\
 #smsp__sass_thread_inst_executed_op_ffma_pred_on.sum,\
@@ -106,8 +107,8 @@ cd ${run_dir}
 #"
 
 metrics="\
-l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,\
-l1tex__t_sectors_pipe_lsu_mem_global_op_st.sum
+dram__sectors_read.sum,\
+dram__sectors_write.sum
 "
 
 profilestring="/project/projectdirs/m1759/nsight-compute-2019.5.0.15/nv-nsight-cu-cli --profile-from-start off --metrics ${metrics} -f --csv"
@@ -140,6 +141,7 @@ if [ $ntrain -ne 0 ]; then
         --model "resnet_v2_50" \
         --scale_factor $scale_factor \
         --batch $batch \
+        --use_batchnorm \
         --decoder "deconv1x" \
         --device "/device:cpu:0" \
         --dtype "float${prec}" \
