@@ -1,0 +1,6 @@
+*.swp
+
+*.eps
+*.png
+
+analysis/.ipynb_checkpoints/
