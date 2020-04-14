@@ -1,6 +1,12 @@
+# Vim swap files
 *.swp
 
+# Image files
 *.eps
 *.png
 
-analysis/.ipynb_checkpoints/
+# Python bytecode
+**/__pycache__/
+
+# Notebook checkpoints
+**/.ipynb_checkpoints/
