@@ -399,8 +399,8 @@ def main(device, input_path_train, input_path_validation, dummy_data,
             print("### Warmup for 5 steps")
             start_time = time.time()
             for _ in range(5):
-                #_, tmp_loss = sess.run([train_op,(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
-                tmp_loss = sess.run([(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
+                _ = sess.run([train_op],feed_dict={handle: trn_handle})
+                #tmp_loss = sess.run([(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
             end_time = time.time()
             print("### Warmup time: {:0.2f}".format(end_time - start_time))
 
@@ -412,8 +412,8 @@ def main(device, input_path_train, input_path_validation, dummy_data,
             while not sess.should_stop():
                 try:
                     #construct feed dict
-                    #_, tmp_loss = sess.run([train_op,(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
-                    tmp_loss = sess.run([(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
+                    _ = sess.run([train_op],feed_dict={handle: trn_handle})
+                    #tmp_loss = sess.run([(loss if per_rank_output else loss_avg)],feed_dict={handle: trn_handle})
 
                 except tf.errors.OutOfRangeError:
                     break

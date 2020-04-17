@@ -183,7 +183,7 @@ def get_optimizer(optimizer, loss, global_step, steps_per_epoch, use_horovod):
         beta1=get_dict_default(optimizer,"beta1",0.9)
         beta2=get_dict_default(optimizer,"beta2",0.999)
         optim = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=beta1, beta2=beta2)
-        #optim = tf.train.experimental.enable_mixed_precision_graph_rewrite(optim)
+        optim = tf.train.experimental.enable_mixed_precision_graph_rewrite(optim)
     elif opt_type == "RMSProp":
         decay=get_dict_default(optimizer,"decay",0.9)
         momentum=get_dict_default(optimizer,"momentum",0.)
@@ -224,7 +224,7 @@ def get_larc_optimizer(optimizer, loss, global_step, steps_per_epoch, use_horovo
         beta1 = get_dict_default(optimizer,"beta1",0.9)
         beta2 = get_dict_default(optimizer,"beta2",0.999)
         optim = tf.train.AdamOptimizer(learning_rate=learning_rate)
-        #optim = tf.train.experimental.enable_mixed_precision_graph_rewrite(optim)
+        optim = tf.train.experimental.enable_mixed_precision_graph_rewrite(optim)
     elif opt_type == "LARC-RMSProp":
         optim = tf.train.RMSPropOptimizer(learning_rate=learning_rate)
     elif opt_type == "LARC-SGD":
